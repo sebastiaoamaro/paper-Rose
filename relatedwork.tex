@@ -1,0 +1,39 @@
+\section{Related Work}
+
+In this section, we analyze existing approaches that use fault injection techniques for bug finding and reproduction.
+
+\mypara{Bug Finding Using Fault Injection.} 
+Fault injection systems fall into two categories: general-purpose frameworks and specialized tools.
+General frameworks like Jepsen~\cite{jepsen}  employ randomized fault injection to test invariants across diverse systems, while Mallory~\cite{mallory} extends Jepsen with  reinforcement learning techniques that rewards fault sequences revealing new system behaviors.
+FaultSee~\cite{9237004} proposes a domain-specific language to specify fault injection scenarios, and Chaos Monkey~\cite{chaosmonkey} focuses primarily on process termination within production environments.
+
+More specialized tools target specific system categories or fault types.
+PACE~\cite{AlagappanEtAl16-OSDI} explores correlated crash vulnerabilities in distributed filesystems by systematically generating persistent states, while Sieve~\cite{sieve}  targets testing the reliability of cluster management controllers.
+FCatch~\cite{fcatch} aims to find timing-sensitive bugs in cloud systems, specifically Time-of-Fault bugs, while CrashMonkey~\cite{crashmonkey18mohan} focuses on uncovering   crash consistency issues in file systems.
+Legolas~\cite{legolas} uses static analysis to extract abstract states from system code with the goal of exposing partil failure bugs in distributed systems.
+Several Byzantine fault tolerance testing frameworks~\cite{toolbft, bftcc, twins, byzzfuzz, tyr} leverage the internal system state to identify critical fault injection points.
+
+These approaches leverage various techniques to efficiently a vast fault space to discover potential bugs.
+However, their goals are fundamentally different than \sys's which focuses on precisely reproducing known bugs with minimal overhead.
+Furthermore, most of these approaches require extensive instrumentation and/or leverage application-level knowledge and hence operate at higher abstraction level than \sys OS-level approach.
+
+
+\mypara{Bug Reproduction.}
+Record-and-replay systems~\cite{r2,ireplayer,doubleplay,mozilarr} capture all non-deterministic behavior, including program inputs and thread interleavings, and later replay this exact sequence of events.
+While comprehensive, these approaches impose prohibitive overhead (e.g., RR~\cite{mozilarr} has a minimum overhead of 1.49×), making them impractical for fault reproduction in production systems.
+
+
+ReproLite~\cite{reprolite} proposes a domain-specific language for expressing bug scenarios (similar to our fault schedule) and enforces the execution order specified in the DSL.
+It does not specifically search for the necessary  context at which faults must be injected but rather serves as a support tool to validate developer's conjectures about faulty scenarios.
+Pensive~\cite{pensieve} processes log files and system bytecode to automatically reconstruct the sequence of inputs (API calls) that trigger a given bug.
+The approach is specific to Java-based systems and focus on uncovering faulty inputs that trigger bugs rather than bugs triggered by external faults.
+Anduril~\cite{anduril} aims to reproduce fault-induced failures and is the closest work to ours.
+It extends Pensieve's algorithm to include exception handling logic and rather than searching for sequences of inputs, searches for exceptions that might lead to failures.
+
+These systems share the common limitation that they leverage JVM-specific information from application monitoring and fault injection (in the case of Anduril) and hence cannot be broadly applied to non-JVM applications. 
+\sys employs OS-level observation and fault injection techniques and hence can target systems implemented in any programming language.
+The low overhead of the tracer allows it to run alongside the production system and capture the minimal amount of information necessary to reproduce the bug.
+Finally \sys's progressive fault context refinement efficiently identifies minimal reproduction conditions to trigger the bug with high replay rates (>90\% in most cases).
+
+
+

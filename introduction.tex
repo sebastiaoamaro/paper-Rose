@@ -1,0 +1,129 @@
+\section{Introduction}
+
+%\pf{We need to think a bit more about the title of the paper.}
+%\sa{Thinking of possibilities.}
+%\pf{Double check that the template is well configured.}
+%\sa{Checked.}
+Distributed systems underpin critical infrastructure services, and their failures can result in substantial revenue losses and service disruptions~\cite{googleoutage, spotifyoutage, openaioutage}.
+Despite advances in, and adoption of, formally proven algorithms~\cite{tla+microsoft} and fault tolerance mechanisms~\cite{avizienis2001fundamental,bft_survey}, widely used distributed system implementations remain vulnerable to failures due to software bugs~\cite{bugsIT} that incorrectly handle hardware and network faults~\cite{incidents1,incidents2}.
+
+In this paper we focus on \efibitalic (\efibshort) --- software defects that manifest only when unexpected external events, such as network partitions, disk errors or OS errors, trigger erroneous program states that lead to failures.
+Unlike typical bugs that are triggered with specific user input, \efibshort often involve defects in the error handling logic of distributed systems, which is particularly complex, hard to validate in deployment, and difficult to test during development due to the myriad of corner cases.
+
+
+External faults are outside of the program control.
+Systems employ mechanisms to gracefully handle these faults and continue their normal execution correctly.
+However, when these faults occur in a specific order and/or in a specific system state they might reveal implementation defects --- we call these defects \efibshort.
+%which are only triggered if those sequences and/or conditions are met, we call these \efib.
+These factors make analyzing and understanding these bugs extremely hard, and few techniques exist to help developers fix them.
+%\pf{I made some changes, but it still needs a pass (reduce redundancy).}\pf{Should fix be the focus of the ending of this last paragraph?}
+
+
+%\pf{This definition should be clearer ("external" is not defined) and better motivated, i.e., why are we targeting these bugs specifically? Also, I'm not sure the term "fault-induced bugs" is a good one for us (e.g., every bug is caused by a software fault according to the terminology I typically see; see the link I added below). }
+% PF: https://ece.uwaterloo.ca/~agurfink/stqam.w20/assets/pdf/W01P2-FaultErrorFailure.pdf
+%\pf{The paragraph needs to be better integrated into the text, but it might be easier to figure out how to do this once we have the motivation for focusing on these bugs.}
+%\pf{We should try to quantify this class of bugs. }
+%\mm{we should also provide the usual definitions of fault/error/failure to avoid any misunderstanding}
+%Fault-induced bugs are both prevalent and pernicious, and finding, reproducing and fixing them is a challenging task.
+%when they occur in production developers must undertake the task of reproducing them to identify root causes and implement the proper fixes.
+%This reproduction task is extremely challenging, with some studies reporting that \textit{“developers spend a vast majority of the resolution time (69\%) on reproducing the failure”}~\cite{pensieve}.
+
+%Many techniques aim to find bugs in distributed systems through fault injection. 
+Tools like Jepsen~\cite{jepsen}, Mallory~\cite{mallory} PACE~\cite{AlagappanEtAl16-OSDI}, Chronos~\cite{chronos}, Sieve~\cite{sieve}, FCatch~\cite{fcatch}, and CrashMonkey~\cite{crashmonkey18mohan} employ various strategies to discover bugs by injecting faults and observing system behavior.
+Nonetheless, in practice these techniques can not find all bugs due to the massive faults and input search space, and hence many critical bugs still find their way into production leading to production failures. 
+%\pf{I think we can compress these paragraphs, the last few sentences are no longer needed, and maybe merge it with another one.} Although bug finding is critical, we argue that it represents only one aspect of improving systems reliability. 
+%\pf{We should be more explicit about why are our approach is orthogonal to bug finding: e.g., bug finding struggles to explore the full testing space and in practice critical bugs slip past testing processes and find their way into production code.}
+%\sa{Added.}
+%\pf{I removed the last sentence. I don't think it was helping. Please check.}\sa{Agree.}
+%After a bug is discovered, developers still face the challenging task of reproducing the bug to identify its root cause and implement a solution.
+
+Thus, the ability to reproduce production failures is key to identifying and fixing these bugs.
+Unfortunately, this is a complex, time-consuming, challenging process for developers, that often involves manual and ad-hoc approaches, such as manual inspection of logs and code with repeated experimentation of possible fixes.
+%Thus, failure reproduction is key to diagnosing production failures and fixing the underlying bugs, but it is a complex, time-consuming, challenging process for developers, and a task that state-of-the-art has failed to address.
+As previous work has shown, \textit{“developers spend a vast majority of the resolution time (69\%) on reproducing the failure”}~\cite{pensieve}. 
+
+Bug finding and reproduction are two distinct tasks, with their specific challenges.
+Whereas bug finding typically involves exploring a large fault space to uncover potential issues, failure reproduction requires precisely recreating the specific \emph{context} that triggered a bug.
+The challenge in reproducing \efibshort is particularly significant for production failures, because tight overhead constraints in production systems limit the information that can be recorded and used, and the complex interplay between system state and fault timing makes failure reproduction extremely difficult.
+
+State-of-the-art works leverage system-specific internals to reproduce fault-induced failures in testing environments.
+Pensieve~\cite{pensieve} reconstructs the inputs and steps that led to a failure from log files, while Anduril~\cite{anduril} mimics the occurrence of faults by injecting exceptions at specific points of the execution.
+While effective, they are limited to JVM-based deployments since they leverage specifics about Java and the JVM to direct their approaches.
+Furthermore, they require fine-grained logs which might not always be available.
+%is a time-consuming and complex task for distributed system developers.
+%Thus, developers need effective reproduction tools that assist them in diagnosing critical bugs when they are triggered in production with low overhead. 
+%\pf{Sebastiao, try to pay closer attention to the topic sentences. Several of them can be more useful, e.g., by making them more specific/complete. }\sa{Attempt at a merge.}
+%Bug finding and reproduction are two different tasks with different challenges.
+
+
+The tension between available information and failure reproduction in distributed systems creates a fundamental challenge. 
+Collecting comprehensive runtime information simplifies bug reproduction but entails high overheads for production environments.
+As an example, record and replay approaches~\cite{r2,ireplayer,doubleplay,mozilarr} capture all non-deterministic behavior, such as program inputs and thread interleavings.
+While these can help reproduce \efibshort during testing runs, they are inapplicable in production given their prohibitive overheads (e.g., RR~\cite{mozilarr} has a minimum overhead of 1.49$\times$). 
+
+
+To address this challenge, we leverage the insight that only a subset of environment information is often relevant for a given failure.
+Furthermore, key interactions between the program and the environment can be recorded with low overhead, potentially allowing the inference of sufficient context to inject the faults that induce \efibshort. 
+
+%To this end, this paper introduces the design of a novel black-box approach that automatically reproduces \efib across diverse distributed systems regardless of system-internals.
+To this end, this paper introduces a novel black-box approach that automatically reproduces \efibshort across diverse distributed systems without application-specific annotations or knowledge.
+%\mm{commented the external observability principle, I could not get it to fit into the flow without talking about monitoring and fault injection at the same time. Can be added back}
+%While internal application state is complex, \efibshort, by definition only affect system behavior when externalized through well-defined interfaces. 
+Since the interactions with the environment typically happen through well-defined system interfaces (primarily system calls) \sys strategically monitors system call boundaries to capture the essential contextual information required for bug reproduction with minimal overhead.
+%Since \efibshort are caused by external events, 
+%We leverage external observability since it suffices for most \efib, since these are caused by external events, we can identify and contextualize them by observing system externals. 
+%While internal application state is complex, faults only affect system behavior when externalized through well-defined interfaces (i.e., system calls).
+%By monitoring these interfaces, we can capture the essential behavior needed for reproduction with minimal overhead.
+%or or to use specific kernel modules.
+
+Realizing this approach requires addressing two key research challenges.
+First, given a system trace leading to a bug, we must find \emph{what} faults occurred, and \emph{when} they happened relative to the system execution.
+For instance, certain faults are mostly innocuous unless they happen when the system is executing specific functions (see \S\ref{sec:motivation} for a concrete motivating example).  
+%\pf{May need to explain better this concept of "relative to the system state", it might not be obvious to everyone what we have in mind.}\sa{Adressed.}
+\pf{Still think the definition could be improved, perhaps by making it more formal too. E.g., "conditions the system was in" is still vague. Something like: a preposition on the system state that X. Also, is it really just a condition on the system state (i.e., memory of the program) or is it more of a TLA-style condition, i.e., a temporal condition. Because this is so central to our work, I think we need to do a really good job at nailing down the meaning of this concept.}
+This requires distinguishing between normal operation failures (which are expected and handled) and the specific fault sequence that triggered the bug.
+We identify common and anomalous events by comparing the production trace of the buggy execution against the trace of a fault-free testing run and, through a diagnosis phase, determine the precise conditions necessary for bug reproduction.
+
+The second challenge involves reproducing production failures in a testing environment. 
+After identifying the context that potentially leads to a fault, we need \emph{precise fault injection} mechanisms to inject faults at exact points in the system execution.
+Without precision, attempts at reproduction would yield inconsistent results, making the process of finding the correct context impossible.
+To solve this challenge, we leverage the insight that external faults only manifest in system behavior at well-defined externalization calls, specifically system calls and network communications.
+By injecting faults precisely at these externalization points, we have the control needed for consistent bug reproduction without language-specific instrumentation.
+
+\sys implements this approach using eBPF~\cite{ebpf} to efficiently and safely observe the application, without requiring kernel changes that could hinder production deployments. 
+
+In our evaluation \sys automatically reproduced 20 \efibshort across 8 widely-used production systems written in different languages, namely  HBase (Java), HDFS (Java), Kafka (Java/Scala), MongoDB (C++), RedisRaft (C), Redpanda (C++), Tendermint (Go),  and Zookeeper (Java).
+We show that \sys keeps an overhead of 2.6\%, by collecting only partial information about the system and its interactions with the environment.
+Finally, we present a discussion on the reproduced bugs, where we delve into what key observations \sys makes to reproduce each bug.
+
+
+%\pf{This paragraph is out of place. I suggest checking other papers to see how to integrate the related work discussion into the intro.}
+%\sa{Moved.}
+%\pf{We're missing at least a results paragraph here. Discussing more the implementation could be worth it too. }
+%\sa{Adressed.}
+
+
+%We evaluate it on a collection of bugs, gathered from Jepsen reports, state-of-the-art works, and manual selections.
+%This collection contains bugs from different distributed systems written in different languages, and with different goals.
+%\sys successfully reproduced 20 bugs, using a trace containing minimal information.
+
+%\pf{This paragraph is out of place. I suggest checking other papers to see how to integrate the related work discussion into the intro.}
+%\sa{Moved.}
+
+
+%\pf{We're missing at least a results paragraph here. Discussing more the implementation could be worth it too. }
+%\sa{Adressed.}
+ 
+\paragraph{Contributions.}
+This paper makes the following contributions:
+\begin{itemize}[leftmargin=*]
+    \item A novel black-box approach to reproducing \efibshort in distributed systems.
+    %\item \tracer a lightweight tracing system for production environments that captures crucial externally observable behavior with less than 2.5\% overhead per node. \sa{If the \tracer term is gone how do we this contribution?}
+    %\item \sys a tool that analyzes a production trace containing a bug, automatically creates precise fault schedules that reliably reproduce bugs, and provides the necessary infrastructure to run them in a testing environment.
+    \item The design and implementation of \sys, which contains three components.
+    A lightweight tracer designed for production environments that captures crucial externally observable behavior with 2.6\% overhead per node. 
+    An analyzer that automatically creates precise fault schedules that reliably reproduce bugs.
+    An executor which provides the necessary infrastructure to run schedules in a testing environment.
+%    \item An extensive evaluation demonstrating the effectiveness of our approach by automatically reproducing 20 bugs across 8 different production systems\mm{rever números finais}, including Zookeeper, MongoDB, and others.
+    \item An extensive evaluation demonstrating \sys effectiveness in automatically reproducing 20 \efibshort across 8 widely-used systems.
+\end{itemize}

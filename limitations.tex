@@ -1,0 +1,26 @@
+\section{Limitations and Future Work}
+We now discuss some limitations of \sys and how these can be addressed in future work.
+
+\mypara{False negatives.}
+The current implementation might have false negatives during fault schedule evaluation.
+When a schedule fails to trigger the bug during the initial testing, \sys discards it entirely, even though subsequent executions might have achieved a statistically significant replay rate.
+A possible enhancement would involve executing each candidate schedule multiple times to establish statistical confidence, though this would linearly increase reproduction time.
+
+
+\mypara{Concurrency}
+The current implementation also lacks support for thread-specific fault contexts.
+While this information can be captured by the tracer, our fault context refinement does not consider thread-specific conditions.
+Even though we did not encounter bugs that required this thread-specific context, we plan to add this functionality in future work.
+
+
+\mypara{Unsupported operations}
+A more fundamental constraint of \sys's design is the ability to handle faults in memory-mapped I/O operations.
+Since most read and write accesses to memory-mapped files bypass system calls, this creates a blind spot in \sys observability model where faults occurring within memory-mapped regions cannot be detected through system call monitoring alone.
+Therefore, bugs triggered by memory access errors in memory-mapped regions remain outside \sys current reproduction capabilities.
+Addressing this limitation in a consistent manner requires further research.
+
+\mypara{Tracing functions in JVM}
+\sa{New paragraph, R1C6:
+	Our approach to detect application functions relies on attaching uprobes to binary addresses. However, this is not a possible approach for Java systems, since they run on the JVM.
+	Other approaches to implement this task exist such as the use of User Statically-Defined Tracing~\cite{usdt}, or annotations with AspectJ\cite{aspectj} which can be done automatically since we know the name of the methods.
+	We consider this to be implementation work, which we intend to add in future work.}

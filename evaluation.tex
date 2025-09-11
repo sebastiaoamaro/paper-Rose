@@ -1,0 +1,229 @@
+\section{Evaluation}
+\label{sec:evaluation}
+
+The evaluation aims to answer two main questions:
+i) how effective is \sys in automatically reproducing \efib, and
+ii) what is the overhead of the tracer.
+%(1) Is the amount of information enough to find external faults?
+%We will also provide an overview of our context analysis and the context necessary for the bugs to occur.
+All the experiments were conducted on a machine with 2x Intel(R) Xeon(R) Gold 5320 CPU @ 2.2GHz (52 cores) with 64GB of RAM running Linux kernel 6.11.1.
+
+In summary, \sys automatically reproduced 20 \efibshort (2 of which were uncovered in the process) from eight production systems implemented in various programming languages.
+In detail, we reproduce bugs in consensus systems --- RedisRaft (C) and Tendermint (Go), storage/databases --- HDFS (Java), HBase (Java), MongoDB (C++), coordination services --- Zookeeper (Java), and stream processing/message-broker systems --- Kafka (Java/Scala) and Redpanda (C++).
+The tracer component achieves an overhead per node of about $2.6\%$.
+
+\subsection{System Selection and Methodology}
+To select the systems and the \efib to reproduce, we relied on Jepsen~\cite{jepsen}, Anduril~\cite{anduril} reports, and a preliminary manual bug search.
+
+Jepsen~\cite{jepsen} is a randomized fault-injection tool that maintains a public database of bugs found.
+We studied the Jepsen analysis of the last 4 years using as the selection criteria of \efibshort, quantity and diversity.
+In the end, we selected RedisRaft\cite{redisraft,redisraftreport} and Redpanda~\cite{redpanda,redpandareport}.
+To obtain the trace, which would come from a production deployment, we execute the target system with our tracer and subject it to Jepsen's faults.
+This trace is then fed to \sys following the workflow depicted in Figure~\ref{fig:workflow}.
+
+
+RedisRaft is an extension of the Redis in-memory key-value store, that aims to offer strict serializability through the Raft consensus algorithm.
+From the bugs found by Jepsen, we ruled out bugs that did not depend on external events, for example, manual membership changes, since these are not \efibshort.
+We also ignored bugs that required Elle~\cite{elle} a transactional consistency checker databases, which Jepsen uses as a bug oracle.
+This main reason to ignore these bugs as due to the long execution time of Elle which needs to analyze the entire transaction history.
+
+From a total 21 bugs, we eliminated 13 which where not \efibshort, and 3 that required Elle as an oracle.
+Out of the 5 bugs, we managed to obtain traces that reproduced the bug for 4 of them and were able to automatically reproduce 3.
+The bug that \sys did not automatically reproduce is explained by the dependency of another bug also happening~\cite{redisraftreport}.
+\texttt{RedisRaft-NEW} and \texttt{RedisRaft-NEW2} were two unreported bugs we uncovered when testing with RedisRaft.
+
+Redpanda is a high-performance, Kafka-compatible streaming data platform designed to handle real-time data processing.
+Similarly to the RedisRaft methodology we discard bugs which are not \efibshort however for this system we considered bugs that require Elle to illustrate that \sys can be used with complex oracles.
+Jepsen reported 11 bugs (note that bug \#1 and \#3039 in the report are the same), 6 of which are not \efibshort.
+Out of the 5 bugs, we managed to obtain traces that trigger the bug for 3 of them, 2 of which we reproduce automatically.
+These bugs needed Elle to be revealed, and always occur together due to having the same source defect.
+For the bug \sys did not reproduce automatically, this stems from the fact that we were unable to compile the binary with debug information due to outdated/missing dependencies, and hence \sys could not run the Level 3 analysis.
+%%We expect this to not be problematic for the developers of the system.
+
+Anduril~\cite{anduril} is a recent system that mimics the occurrence of faults by injecting exceptions in Java-based programs.
+
+The bugs reported by Anduril are reproduced by small unit tests or deployments in a small cluster.
+Anduril reports 22 bugs, \sa{R4C2: out of these 22 we encountered problems either running or compiling the system in 8 of them. This leaves us 13 possible bugs, we reproduced 10 of these, only one of these \sys can not reproduce since the bug depends on a Interrupted Exception which is an internal Java exception.
+	The bugs which we did not reproduce are of the same nature as the ones we did, they require a precise IOException or for \sys a system call failure. Therefore, they would not add new qualitative knowledge about \sys, and only increment the total number of bugs we reproduced.}
+\sa{"Rather than aiming to reproduce all the reported bugs, we targeted bug diversity across different systems." Temos de retirar esta frase para fazer sentido.}
+Since we do not have traces from when these bugs occurred in production, we recreate the traces by running the test cases provided by Anduril without the Anduril workflow.
+
+sa{R1C7,R2C2: \mypara{Developer Inputs.} The necessary inputs to reproduce these bugs were as follows. For the Anduril Bugs, we leveraged the tests, mostly unit-tests, provided by Anduril, these serve as a workload and oracle, since the outcome of the test indicates the bug occurs or not. For the other bugs, we constructed generic-representative workloads, which do generic operations in loop (e.g. insert and read for MongoDB) or used Jepsen, which has a similar approach but with append-only lists.
+		For oracles, the oracles we designed (Jepsen already has a built-in one~\cite{elle}) collect the logs of the nodes in the deployment and then check for a specific message within the logs indicating the presence of a bug.
+		For lists of functions, we looked into the RedisRaft and Redpanda repo and looked for code files with names that indicate control functionality, e.g., snapshotting, raft, partition, etc.}
+
+
+\mypara{Key Takeaways.} Out of the 22 available traces, \sys automatically reproduces 20 bugs, achieving close to full completeness.
+For 16/20 bugs, \sys achieves a 100\% replay rate, thus proving it can generate precise fault-schedules which consistently show \efib.
+Out of 10/20 bugs \sys finds the necessary schedule at the first attempt, showing it can efficiently find the necessary faults and fault contexts to reproduce \efib.
+
+%\mypara{Proof of concept.} As an initial proof of concept, we looked at GitHub repositories of BFT-based systems, where we found \texttt{Tendermint-5839}.
+%\mypara{Related work.} We analyzed the state-of-the-art specifically, Anduril, a work recently published, which aims to reproduce \textit{fault-induced failures}.
+
+
+\subsection{Bug Reproduction}
+
+\input{bug_table}
+
+Table~\ref{tab:bugs} summarizes the \efib automatically reproduced by \sys.
+The column \emph{Faults Inj.} reports the faults that had to be injected to uncover the bugs, column \emph{RR (\%)} reports the replay rate, column \emph{Sched.} reports the number of schedules generated before achieving the target replay rate, column \emph{\#R} reports the total number of runs, column \emph{Time (m)} reports the total time taken, \sa{ and \emph{FR} reports the percentage of potential faults for \sys to analyze which are removed by comparing the buggy trace with the trace from a normal execution.}
+Recall that after finding a schedule that reproduces the bug, we execute the same schedule ten more times to measure the replay rate.
+Hence, in most cases, the number of runs is the number of schedules generated plus ten.
+In bugs where \sys can not find all of the key fault contexts, the results may vary. Therefore, for each of these bugs we run \sys 3 times and present the average and standard deviation.
+
+%\sys is able to reproduce a total of 20 bugs in RedisRaft, Redpanda, MongoDB, Zookeeper, HDFS, Kafka, HBase, and Tendermint.
+The average number of runs necessary to reproduce a bug with the target replay rate (80\%) is 23, the average number of schedules is 7, and the average execution time is 60 minutes with a standard deviation of 90, mainly due to \texttt{Redpanda-3003} and \texttt{Redpanda-3039}.
+Since \sys aims to achieve a high replay rate, it will continue testing schedules until it reaches this goal.
+In these two bugs, which in average report a 70\% replay rate lead to \sys running for a longer time.
+The longer testing time is also explained by the fact that these two bugs require Elle which takes about 2 minutes to analyze the entire transaction history of each fault schedule.
+\sa{In terms of the faults removed by comparing a trace from a normal execution with the buggy trace, we can observe that this comparison allows reducing the search space. In some bugs, it achieves up to 85\% of potential faults removed. As an example: in Java systems it is extremely common for the stat and readlink system calls to fail with a specific error number code, thus by comparing the two traces we can remove these faults as a possible potential fault which revealed the bug.
+	While in others it achieves a lesser reduction this is due to the fact that crashes and pauses cause multiple network delays and each individual network delay is a different fault. Since these faults only occurs in the buggy trace they can not be removed.}
+
+The results from Table~\ref{tab:bugs} show that \sys can reproduce fault-induced bugs quickly, and that our diagnosis is effective at automatically deducing the necessary schedule to reproduce bugs.
+Due to space constraints we are unable to provide a detailed discussion for all the bugs reproduced, hence we now discuss just a few representative ones.
+
+
+\mypara{Case study: \texttt{RedisRaft-43}.}
+To illustrate \sys diagnostic capabilities, we examine the \texttt{RedisRaft-43} bug (our motivating example in \S\ref{sec:motivation}), where a Jepsen fault sequence achieves only a 1\% replay rate.
+
+\sys starts with the production trace containing the bug and systematically refines the schedule until the target replay rate is achieved.
+There are a total of 5 nodes in the system.
+The initial \emph{Level 1} analysis (\S\ref{sec:levelone}), considers only basic fault order and produces a schedule that:
+i) crash three non-leader nodes,
+ii) creates a network partition that isolates the leader, and
+iii) crashes the leader.
+
+This schedule fails to consistently reproduce the bug and hence \sys moves to \emph{Level 2} analysis (\S\ref{sec:leveltwo}) which creates the context for each of these faults.
+\sys incrementally adds functions to the context (whose invocation must be observed before the fault is injected), eventually identifying that the fault must occur specifically when the \texttt{RaftLogCreate} function is executing, significantly narrowing the fault injection window.
+The first thing this function does is call \texttt{prepareLog}, however, since in the Level 2 \sys injects the fault (process crash in this case) right at the beginning of the invocation (function offsets are only explored in \emph{Level 3}), the \texttt{parseLog} function is never run.
+
+The specificity at which exact point in the execution the fault is injected is critical since the bug manifests only when the process is crashed before the invocation of \texttt{parseLog}, and explains the very low reproduction rate of a randomized approach.
+With this precisely defined fault context, \sys generated a schedule that reliably achieves a 100\% replay rate across multiple test iterations.
+Upon restarting, the node will fail the assertion that the indexes between the log and snapshot do not match, due to the fault injected by \sys.
+This was fixed in the RedisRaft commit ~\texttt{d1d728d}~\cite{redisraftd1d728d} which changed the \texttt{RaftLogOpen} function to not rebuild the index, and instead keep the one in the log.
+
+
+\mypara{Case study: \texttt{RedisRaft-NEW}.}
+This bug is unreported by Jepsen but appeared in one of the traces produced by Jepsen when we are trying to produce a trace for \texttt{RedisRaft-43}.
+%Which we analyzed when attempting to reproduce ,
+This new bug presents an instructive case for the precision of fault injection.
+The key insight for the bug is that the last fault must occur at a specific point in execution leading to a corrupted snapshot file.
+
+The initial \emph{Level 1} analysis (\S\ref{sec:levelone}), considers only basic fault order and produces a schedule that:
+i) creates a network partition that isolates the leader,
+ii) crashes the original leader, and
+iii) crashes the original leader again after it restarts.
+This schedule does not trigger the bug, and \sys moves to \emph{Level 2} to start contextualizing the faults.
+Here the last fault differs from the previous bug, with the last process crashed being contingent on the invocation of function \texttt{storeSnapshotData}.
+Still, this is not enough to reproduce the bug, and hence \sys moves to \emph{Level 3} (\S\ref{sec:levelthree}) and start exploring the function offsets.
+\sys prioritizes calls to system calls and in the \texttt{storeSnapshotData} there are three system calls: an \texttt{open}, a \texttt{write}, and a \texttt{close}.
+\sys generates schedules that injects the faults at each of these points, and when the fault happens at the \texttt{write} invocation the bug is triggered --- upon restarting the snapshot is corrupted due to a mismanagement of the snapshot file.
+This bug requires very specific conditions which is why, we think, it was not reported by Jepsen and once again illustrates the importance of precise fault injection --- the bug is only triggered if the system crashes within a specific function and when executing a specific system call.
+%We reran this fault schedule in the most recent versions of RedisRaft, and we are not able to trigger the bug indicating that it has been fixed since the Jepsen analysis.
+%bugs we found during Is one of the bugs we found during our process of reproducing RedisRaft bugs. The external events to reveal the bug are, injecting a crash on the leader node, followed by a network partition that isolates the leader from the other nodes, and finally a crash on the initial leader.
+%In \textit{Level 1}, we use only information of the fault themselves, thus, the faults are injected at their relative times, after running the schedule is not triggered, thus we move to the next level.
+%In \textit{Level 2}, we create contexts containing functions for all the faults, starting with the process crashes, followed by the network partitions. None of the schedules generated during this process revealed the bug.
+
+
+
+
+\mypara{Case study: \texttt{Zookeeper-3006}.} This bug comes from Anduril's evaluation.
+In this bug, a node attempts to calculate the size of the snapshot.
+If an exception occurs when accessing the snapshot the exception is correctly caught.
+However, the value that holds the size of the snapshot is still used internally, resulting in a \emph{NullPointerException} that crashes the node.
+
+By analyzing the code, issue, and the testcase we found that the necessary behavior to reproduce the bug is a failed \texttt{read} system call on the snapshot file.
+In the absence of a production trace, we generate one by manually creating a schedule that triggers this behavior, and fed the resulting trace to \sys.
+%with this behavior, we knew it should be the first read after opening the file, so instead of randomly failing reads, we leveraged our knowledge to quickly reproduce the bug manually. In the end, we get a trace to fed our approach.
+
+\sys started by comparing a faultless execution trace with the provide trace, and quickly found the \texttt{read} system call that caused the bug.
+Next, in the Level 1 analyses, it takes an initial guess, by failing the first read on the file \textit{snapshot.0}.
+This is indeed the necessary schedule to trigger the bug since the first read on the snapshot is to calculate its size.
+Thus, \sys manage to find the bug in the first attempt.
+It then runs the schedule 10 times to check for the replay-rate, with in this case achieves a replay rate of 100\%.
+
+We were able to find the schedule that reproduces the bug in 1 run, while Anduril takes 13.
+Due to our confirmation step, where we run the schedule 10 times, in the end, it takes 11 runs until \sys finishes.
+
+
+%We will now discuss at which Level of our context analysis the bugs were found, and what was the key condition for them to occur.
+%10 of our bugs were found at \textit{Level 1} of context analysis, which means the information about the faults themselves was enough for the bug to occur. Out of these 10, 6 leveraged time as a key condition, and the other 4 leveraged the inputs of the system call and were successful at revealing the bug at the first iteration of the system call with the specific input. 9 were revealed at \textit{ Level 2}, 7 needed a specific iteration of a system call with specific arguments, and the other 2 a specific function chain. Finally, one of the bugs needed a specific offset within the last function of the chain as context information, thus it could only be found at \textit{Level 3}.
+
+\subsection{Tracer Overhead}
+
+
+Since the tracer is designed to run alongside production systems, the primary metric for production viability is performance overhead.
+We performed a comparative overhead study using three tracing approaches: \sys tracer as described in the previous sections, a \emph{Full} approach that records all the system call invocations, and an \emph{IO content} approach that captures the same events as the \sys tracer plus the contents (up to 128 bytes) of every \texttt{read} and \texttt{write}.
+
+
+We used a 3-node Redis cluster under YCSB~\cite{ycsb} workload A (50\% reads, 50\% updates) and measured the throughput degradation compared to a baseline without tracing.
+The results are show in Table~\ref{tab:tracer_comparison}: the Events column reports all the events that matched the tracer criteria, the Saved column reports the number of events kept in the circular buffer, the Memory column reports the maximum memory usage, the Time column reports the processing time of the trace, and the Overhead column reports the application level overhead.
+
+By capturing only the essential events (failed system calls) \sys has to process substantial less events (5,444 vs. millions), which results in a minimal memory footprint (712 KB vs 151 MB) and enables rapid processing (0.06s vs. 17s).
+In terms of the direct impact on the application, \sys's tracer has an 2.6\% overhead per node while the Full tracer has an 3.9\% overhead showing the benefits of only recording system calls that fail.
+As expected, recording more information as done by the IO Content approach further increases the overhead to 4.9\% mostly due to the cost of memory copies. The memory footprint also increases due to saving the contents of write and read operations.
+
+These results show that \sys selective tracing successfully minimizes performance impact while capturing all essential information to reproduce \efib.
+
+\begin{table}[h]
+	\scriptsize
+	\centering
+	\caption{Cost of \sys tracer versus other alternatives.}
+	\label{tab:tracer_comparison}
+	\begin{tabular}{|l|c|c|c|c|c|c|}
+		\hline
+		\textbf{Approach} & \textbf{Events} & \textbf{Saved} & \textbf{Memory} & \textbf{Time (s)} & \textbf{Overhead} \\ \hline
+		\sys              & 5,444           & 5,444          & 712 KB          & 0.06              & 2.6\%             \\ \hline
+		Full              & 14M             & 1,048,576      & 151 MB          & 17                & 3.9\%             \\ \hline
+		IO Content        & 9M              & 1,048,576      & 281 MB          & 17                & 4.9\%             \\ \hline
+	\end{tabular}
+\end{table}
+
+\subsection{Function Frequency Heuristic}
+\sa{R2C3: New Section}
+
+\begin{table}[h]
+	\scriptsize
+	\centering
+	\caption{Effectiveness of the function frequency heuristic.}
+	\label{tab:function_frequency}
+	\begin{tabular}{|l|c|c|c|}
+		\hline
+		\textbf{Bug}           & \textbf{All Functions} & \textbf{Only Infrequent Functions} & \textbf{Reduction \%} \\ \hline
+		\texttt{RedisRaft-43}  & 1699348                & 3677                               & 99.7                  \\ \hline
+		\texttt{RedisRaft-51}  & 214552                 & 2121                               & 99                    \\ \hline
+		\texttt{RedisRaft-NEW} & 3023112                & 4895                               & 99.8                  \\ \hline
+		\texttt{Redpanda-3003} & 1749429                & 11842                              & 99.3                  \\ \hline
+		\texttt{Redpanda-3039} & 1749429                & 11842                              & 99.3                  \\ \hline
+	\end{tabular}
+\end{table}
+
+To calculate the effectiveness of the function frequency heuristic, we conducted a test where we run the schedules which reproduce the bugs where this heuristic applies, in two scenarios: first one where we trace all the functions from the user provided files, and second one where we trace only the functions that were not removed by the frequency heuristic. These schedules take on average 2 minutes to run
+Results are displayed in Table~\ref{tab:function_frequency}.
+As we can see, this heuristic reduces the number of traced functions by up to 4 orders of magnitude. In practice, if we do not apply this heuristic the overhead of the Tracer will be drastically higher since every time an uprobe is reached a switch between user and kernel space is required. Another consequence of not applying the heuristic is that the trace will be polluted, since we only trace the last 1 million events.
+
+As an example, lets observe a function which is removed from RedisRaft, \textit{RaftLogCurrentIdx} this function is called 131388 times, the function only returns the latest idx of the Raft Log and contains only two lines of code. This is a common pattern in systems, where simple functions which help in the management of the system are called regularly and are not helpful in representing system state. Thus, by removing these functions we can reduce the overhead and ensure we collect only the most relevant functions in the system.
+
+\subsection{Discussion}
+The effectiveness of each level in reproducing bugs provides empirical insights into the relative complexity of \efib.
+
+The \emph{Level 1} analysis, which uses only information about the faults themselves was sufficient to reproduce 10 of the 20 bugs in our evaluation set.
+Within this group, 6 bugs required only information about the relative fault ordering, while the remaining 4 required specific information about the system call inputs.
+These findings suggest that for approximately half of \efib, basic external observability provides sufficient context for reliable reproduction.
+
+The \emph{Level 2} reproduced 9 additional bugs.
+Among these, 7 required identification of a specific iteration of a system call (the \emph{nth} invocation) with specific arguments, while the other 2 manifested only when particular function execution sequences preceded the injection of the fault.
+The context refinement substantially increases the replay rate with most bugs achieving 90\%.
+The results indicate that while basic context suffices for many cases, function-level execution awareness significantly extends reproduction capabilities.
+
+Finally, only a single bug required the \emph{Level 3} precision of injecting faults at a specific offset within a specific function.
+
+The empirical distribution of bugs reproduced across these three levels validates \sys stratified approach.
+On the one hand most of the bugs can be reproduced with simpler and faster strategies that only require external observability, validating our main insight that external observability plays a key role in reproducing \efib.
+On the other hand, some bugs require specific context about the system state which while more expensive, can still be obtained in an application-agnostic manner.
+
+sa{R2C4,R3C1: \subsubsection{Bugs} In this work, we were able to reproduce 20 \efibshort across 8 different systems. The bugs we reproduced are mostly bugs related to the control-path of the systems.
+		While in theory, \efibshort related to the data-path of the system are possible, we did not find any in our sources.
+		This is an expected result since \efibshort affect mainly control aspects of the system.
+		While it is possible for a specific sequence of inputs to the system combined with an external fault to reveal a bug, this is a rarer scenario. In these scenarios, \sys will need the developer having the correct input sequences to use as workload for the system, because \sys does not capture input information.}
+\sa{Maybe add the bug-limitations here? Or add this as a limitation?}

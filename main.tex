@@ -1,0 +1,106 @@
+\documentclass[sigplan,twocolumn,review,anonymous]{acmart}
+\renewcommand\footnotetextcopyrightpermission[1]{}
+\pagestyle{plain}
+\settopmatter{printfolios=true,printacmref=false}
+\acmSubmissionID{1123}
+\usepackage[utf8]{inputenc}
+\usepackage{setspace}
+\usepackage{xspace}
+\usepackage{listings}
+\newboolean{showcomments}
+\setboolean{showcomments}{true}
+\ifthenelse{\boolean{showcomments}}
+{ \newcommand{\mynote}[3]{
+    \fbox{\bfseries\sffamily\scriptsize#1}
+    {\small$\blacktriangleright$\textsf{\emph{\color{#3}{#2}}}$\blacktriangleleft$}}}
+{\newcommand{\mynote}[3]{}}
+
+\usepackage[ruled, vlined, linesnumbered]{algorithm2e}
+\usepackage{amsmath, amsfonts, amsthm,microtype}
+\usepackage{tablefootnote}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\definecolor{darkgreen}{rgb}{0.0, 0.5, 0.26}
+
+\newcommand{\mm}[1]{\mynote{mm}{#1}{blue}}
+\newcommand{\sa}[1]{\mynote{sa}{#1}{orange}}
+\newcommand{\pf}[1]{\mynote{pf}{#1}{darkgreen}}
+%\newcommand\sa[1]{\textcolor{orange}{\textbf{SA:} #1}}
+%\newcommand\pf[1]{\textcolor{darkgreen}{\textbf{PF:} #1}}
+
+\newcommand{\sys}{\textsc{rose}\xspace}
+\newcommand{\efibitalic}{\textit{external-fault-induced bugs}\xspace}
+\newcommand{\efib}{external-fault-induced bugs\xspace}
+\newcommand{\efibshort}{EFIBs\xspace}
+\newcommand{\efibsingle}{EFIB\xspace}
+
+\title{OS Level Reproduction of External-Fault-Induced Bugs}
+\title{General-Purpose Reproduction of External-Fault-Induced Bugs}
+\title{General Reproduction of External-Fault-Induced Bugs}
+\title{\sys: Systematic Reproduction of External-Fault-Induced Bugs}
+\title{Reproducing External-Fault-Induced Bugs}
+\title{\sys: Reproducing External-Fault-Induced Bugs}
+\title{\sys: Reproducing External-Fault-Induced Failures in Distributed Systems with Lightweight Instrumentation}
+
+%\title{Reproducible Fault Injection at the OS Level}
+\author{Sebastião Amaro}
+\affiliation{
+  \institution{IST Lisbon \& INESC-ID}
+  \country{Lisbon, Portugal}
+}
+\author{Miguel Matos}
+\affiliation{
+  \institution{IST Lisbon \& INESC-ID}
+  \country{Lisbon, Portugal}
+}
+\author{Pedro Fonseca}
+\affiliation{
+  \institution{Purdue University}
+  \country{West Lafayette, Indiana, U.S.A}
+}
+
+\newcommand{\mypara}[1]{\noindent{\bf {#1}~}} 
+\acmConference{}{}
+
+\lstdefinestyle{yaml}{
+    basicstyle=\ttfamily\footnotesize,
+    keywordstyle=[1]\color{blue}\bfseries,
+    keywords=[1]{execution_plan, setup, workload, nodes, faults, block_ips, process_restart,process_restart2, begin_cond, condition},
+    keywordstyle=[2]\color{teal}\bfseries,
+    keywords=[2]{script, duration, container, binary, ip, leader, type, time, binary_loc, symbol, offset, call_count, ips_in, ips_out,target},
+    commentstyle=\color{gray},
+    stringstyle=\color{red},
+    showstringspaces=false,
+    breaklines=true,
+    frame=single,
+    rulecolor=\color{lightgray},
+    tabsize=1
+}
+
+\begin{document}
+\begin{singlespace}
+\input{abstract}
+\maketitle
+
+% Automatic reproduction of external-fault-induced bugs
+% Rose: Leveraging the environment to reproduce extern-fault induced bugs
+% Rose: automatic reproduction of external-fault induced bugs
+% What? When? How? Diagnose! Reproduce! An agnostic approach to external-fault-induced bugs
+% Rose: OS-level Fault Injection for reproduction
+\input{introduction}
+\input{background}
+\input{motivation}
+\input{overview}
+\input{implementation}
+\input{evaluation}
+\input{relatedwork}
+\input{limitations}
+\input{conclusion}
+%\input{relatedwork}
+
+\clearpage
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+
+\end{singlespace}
+\end{document}

@@ -1,0 +1,37 @@
+\section{A Reproducibility Challenge}
+\label{sec:motivation}
+
+To demonstrate the difficulty in reproducing \efibshort, let us consider bug \texttt{RedisRaft-43}~\cite{redisraft43} (detailed in Table~\ref{tab:bugs}, and \S\ref{sec:evaluation}), a real bug discovered by Jepsen~\cite{jepsen} in RedisRaft~\cite{redisraft}, a Redis module implementing the Raft consensus algorithm.
+This bug manifests as a node panicking on restart, due to a mismatch between log and snapshot indexes.
+Jepsen discovered this bug by randomly injecting a combination of process crashes, pauses, and network partitions.
+The only information reported is an error message from a failed assertion that validates these indexes must match.
+
+As a preliminary attempt to try to reproduce this bug, we analyzed the Jepsen test history to extract the sequence of faults injected right before the system crashing.
+Next, we manually created a simple schedule incorporating these faults in an attempt to trigger the bug. 
+We empirically found that the last three faults (we tried other combinations) before the crash were enough to reproduce the bug, but with a very low success rate (1 in 100 executions), demonstrating the difficulty of manually recreating the precise conditions needed. Some serious bugs are even more difficult to analyze, which explains why some remain unfixed, despite having been triggered in production, for days, weeks, or even months. 
+~\cite{pensieve} reports, by studying 30 randomly sampled failures, that the average absolute time until a failure is reproduced is around 79 days (69\% of resolution time).
+This scenario highlights two key challenges.
+First, random fault injection provides no guarantee the bug will recur in subsequent test runs, making timely debugging impossible. 
+Second, error messages alone provide insufficient information to determine \emph{what} fault conditions triggered the bug or \emph{when} they occurred relative to the system state.
+Such a low replay rate and scarce information makes it hard for developers to understand the causes of the bug, and time-consuming to test potential fixes.
+
+When we used \sys to analyze the trace from this single successful reproduction, it automatically identified the three critical faults and the specific context in which they needed to occur, generating a schedule that reproduced the bug with 100\% replay rate.
+The key insight was that the final fault (a process crash) had to happen when a node was executing a specific function.
+
+
+%\mm{my proposal is to drop this entirely, we're short in spcae and time and already discuss this at some lenght in the intro}
+%\subsection{System Calls and External Observability.}
+%\sa{Moved system calls and external observability to Motivation, and removed the first paragraph. I think we do not have to say in a systems conference that system calls are an interface between OS and applications.}\pf{Looks good to me.}
+%%System calls serve as the interface between applications and the operating system kernel, providing the means through which applications can access hardware resources and OS services.
+%External faults (disk errors, network issues, etc) are typically exposed to applications through the system call interface.
+%For example, a disk failure can appear as a system call error when an application attempts I/O operations.
+%%\pf{This is not entirely accurate; a disk failure could cause a instruction to not execute, a CPU failure could also cause similar problems. Even data accesses through asynchronous IO, using memory mapped files, could cause an error outside system call invocations. We need to fix this. }
+%%\sa{Changed to "substantial" external faults}
+%%\pf{Also, what we're sayings here is not background, it's motivation / approach. But I suggest we try to fix the intro first  and then fix this (e.g., we also don't want too much redundancy with the intro)}
+%%\sa{Agree, TODO: Moved to approach}
+%\pf{Check my change :) }
+%
+%This observation underpins our approach: by monitoring and manipulating system calls, we can observe and reproduce the external faults that trigger bugs.
+%Furthermore, this approach is completely agnostic of the application details since, regardless of implementation language, all applications must use system calls to interact with their environment.
+
+%\pf{My concern with this text is that it makes it sound like this is a big insight, but to me it is a relatively standard way of instrumenting programs or recording program executions.}

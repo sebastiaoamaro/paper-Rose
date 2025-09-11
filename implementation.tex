@@ -1,0 +1,90 @@
+\section{Implementation}
+\label{sec:implementation}
+
+\sys is written in a combination of C and Rust for the performance-critical components, and Python for the utilities and orchestration between the different steps of the workflow (Figure~\ref{fig:workflow}).
+
+
+\subsection{Profiler}
+
+The Profiler identifies infrequent application functions through static and dynamic analysis, and collects information about the frequency of system calls.
+It receives a binary and a list of source file names.
+For static analysis, we use a Python script that employs standard Linux utilities (\texttt{readelf} and \texttt{addr2line}) to extract function symbols and their corresponding binary offsets from the target executables.
+We then collect all of the symbols defined in the provided files.
+For dynamic analysis, we leverage an extended version of the production tracer that also counts functions and system calls invocation frequency.
+The Profiler outputs a file containing function names, binary offsets, and invocation frequency statistics, which guides subsequent tracing operations.
+
+\subsection{Tracer}
+
+The tracer is performance-critical since it runs alongside production systems.
+It is implemented using \texttt{libbpf-rs}~\cite{libbpfrs}, a Rust binding for the Linux eBPF C library.
+We selected Rust for its memory safety guarantees and performance comparable to C/C++ implementations.
+The tracer consists of eBPF programs written in C (as required by the eBPF infrastructure) with a Rust control plane that manages program loading, event collection, and trace persistence.
+
+We maintain a fixed-size circular buffer of recent events (1 million by default) using a \texttt{BPF\_MAP\_ARRAY}.
+This approach provides a bounded memory footprint and eliminates continuous disk I/O during normal operation.
+The buffer contents are only dumped to disk when triggered by the bug oracle, minimizing the impact in production.
+
+Instead of capturing all system calls, we focus exclusively on failures, which are relatively rare but contain the most valuable information about potential faults.
+To achieve this, we leverage eBPF \texttt{sys\_exit} tracepoint, which is called every time a system call returns.
+We discard all invocations that did not return an error and save those that do in the circular buffer.
+Similarly, we trace only infrequent application functions (identified by the Profiler) rather than all function calls, significantly reducing the number of traced events.
+Function calls are traced through eBPF user-function probes.
+
+
+\mypara{File based system calls.}
+For file based system calls, it is important to save the full path they operate on.
+Instead of saving the full path for every system call (which would require expensive string copies), we maintain a lightweight mapping of filenames to file descriptors, which is only updated during \texttt{open}, \texttt{close}, and \texttt{dup} operations.
+Then, to minimize runtime overhead, we reconstruct the path information for each system call in a post-processing step outside the critical path, after saving the trace to disk.
+
+For system calls that operate directly on path names rather than file descriptors (e.g. \texttt{open}, \texttt{stat} ), we record only the userspace address of the variable containing the path name  in the \texttt{sys\_enter}  tracepoint.
+If the system call fails, we collect its contents. This way we avoid unnecessary copy operations.
+
+
+\mypara{Network delays.}
+For network delay detection, we leverage XDP (eXpress Data Path) programs attached directly to network interfaces, enabling packet analysis at the earliest point in the networking stack with near-zero overhead.
+\sa{R1C2: XDP only supports attaching to the ingress point in the network device, thus we only detect packets on the receiver side of the network interface. Since we attach to the receiver side, we are not affected by sender side packet retransmissions, which would affect our detection precision.}
+
+\mypara{Process State.}
+We use the \texttt{procfs}~\cite{procfs} Rust crate to query the process state at regular intervals (default of 1 second).
+
+These implementation choices enable the tracer to maintain overhead below 2.6\% per node (see \S\ref{sec:evaluation}) while capturing sufficient information for fault reproduction.
+
+
+\subsection{Analyzer}
+\sa{O algoritmo é mais complexo que aquilo, acabei for fazer só para a contextualização da falta, deveria ter feito para tudo?}
+The analyzer implements the diagnosis phase and receives the profile, a buggy production trace, the workload, oracle, and the application binary.
+It iteratively creates fault schedules in YAML format, which are parsed to create a C program implementing the schedule.
+
+This is passed to the executor which starts the tracer.
+After the executor executes the schedule, it runs the oracle to check for the presence of the bug, and collects the trace which is to refine the schedule as per Algorithm~\ref{alg:context}.
+The Analyzer does static binary analysis to collect the offsets for the application functions, which are used in the Level 3 analysis.
+It accomplishes this by disassembling the binary using \texttt{objdump}, and parsing its contents using \texttt{regex}.
+
+\subsection{Executor}
+The executor is implemented in C and leverages the \texttt{libbpf}~\cite{libbpf} framework to load, verify, and attach the eBPF programs.
+These eBPF programs are system call probes, kernel probes, and user function probes.
+
+To emulate system call faults, we use the kernel system call probe \textit{bpf\_override\_return} which allows overriding the return value of the probed function.
+We selected kernel probes instead of \texttt{tracepoints} because they enable the use of \texttt{bpf\_override\_return} while providing the same level of contextual information (timestamps, input arguments, etc.).
+%System calls can be overridden at the entry or exit point, hence, we can emulate scenarios where a system call does not complete and returns an appropriate error code, and where it completes but still returns an error code.
+
+To emulate network faults we use custom \textit{Linux TC} filters.
+This is achieved by inspecting the packet headers, checking the source and destination IPs, and dropping the packets according to the details of the fault.
+
+Process faults are implemented with the \textit{bpf\_send\_signal} eBPF helper function.
+This helper enables sending signals to a process from kernelspace.
+We use this approach instead of relying on userspace signals to ensure that the process state manipulation occurs at precisely the intended execution point before the process leaves kernel mode.
+
+\sa{R1C5: \mypara{Function offset fault injection.} To inject faults in specific offsets within functions, we probe a specific offset within the binary using uprobes. When the address is hit, \sys checks if there are any faults to inject and acts accordingly. }
+\mypara{Tracking process ids} As we discussed in \S\ref{sec:reproducing} state tracking and fault injection are done on a per-process basis. Our infrastructure, based on eBPF maps, maps the process id to the faults that will occur on it, and the conditions the node (a specific process id) must reach for the faults to be injected.
+
+Since systems commonly spawn child processes to perform certain tasks, there might be scenarios where it is a child process that reaches the condition previously specified.
+To solve this issue, we keep a map of child processes to the parent process in the schedule execution.
+The decisions are made according to the initial process id, and the faults are injected in the parent. After we inject a process crash, when the node restarts it will be assigned a new process id, thus breaking the initial mapping we did. Similarly to the above, we map the new process id to the original one to make decisions, and inject faults on the new process id.
+
+%With these implementation decisions, we avoid reorganizing the data structures initial created, an do not have to freeze the entire system, replicate and/or restructure the structures initially created. Thus, we can keep a real-world execution of the system.
+
+%As mentioned in Section~\ref{efficientstatetracking}, relevant system calls are separated from irrelevant ones by a {pid, Condition Number} tuple, as well as faults.
+%However, processes can create child processes to run other tasks, this is a common behavior in distributed systems.
+%Another challenge is handling process restarts since these cause the pid to change, hence, we need a way to tolerate these changes without stopping the entire system and changing all of the preexisting structures.
+%We employ a similar method to child processes and map the new pid to the original one.

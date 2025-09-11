@@ -1,0 +1,35 @@
+\section{Background}
+This section provides an overview of the key technologies underpinning our approach, specifically how we record application interactions with the environment, and how we precisely inject faults. To this end, we leverage several features of the Linux kernel.
+
+%\pf{There is too much personal language in this section (e.g., "we", "us", "our").}
+%\sa{Adressed.}
+
+%It is through system calls that applications make indirect contact with the environment, by environment we denote all external components such as disk, memory, network, etc. Thus, when an external fault occurs, the application will know of it directly (errno in a system written in C) or indirectly (Java exceptions, Results in Rust) through the result of a system call.
+%Therefore, we choose to leverage eBPF and other kernel subsystems, this allow us to emulate most of the possible external faults as well as trace key application/environment changes. Since the only requirement for these subsystems is a Linux kernel our contributions can be used in any system running in a Linux kernel.
+
+%\subsection{Linux Kernel Subsystems for Tracing and Fault Injection}
+%To achieve lightweight tracing and precise fault injection, we leverage several Linux kernel subsystems.
+%To record how applications interact with their environment and precisely inject faults we leverage several features of the Linux kernel.
+
+
+\paragraph{eBPF (extended Berkeley Packet Filter)} eBPF enables the execution of custom programs within the Linux kernel in a sandboxed environment without kernel code modifications.
+eBPF programs run with high performance (by executing directly in the kernel) and safety (through verification mechanisms that ensure isolation and termination).
+We note that the restrictions imposed by the eBPF verifier, such as checking constraining memory accesses, preventing deadlocks, restricting the number of instructions, among others, make developing these programs potentially challenging.
+
+In our approach, eBPF serves two critical purposes:
+\begin{itemize}[leftmargin=*]
+\item Fault injection, Using \texttt{bpf\_override\_return}~\cite{override} to manipulate system call results and \texttt{bpf\_send\_signal}~\cite{send_signal} to control (e.g.: pause, crash) processes from kernelspace.
+\item System tracing, Monitoring both kernel activity (through \texttt{tracepoints}~\cite{ebpftracepoints} and syscall \texttt{probes}~\cite{ksyscall}) and application behavior (via user-function probes~\cite{ebpfuprobes}).
+\end{itemize}
+
+\paragraph{XDP (eXpress Data Path)} XDP complements our tracing capabilities by providing a high-performance framework for processing network packets at the earliest point in the networking stack, right after a packet is received by a network interface card (NIC), and before it is passed to the kernel's networking stack.
+We use XDP to efficiently monitor network traffic with minimal overhead, capturing communication patterns essential for reproducing network-related faults.
+Some NICs allow running XDP programs entirely on the NIC, allowing users to offload their work from the kernel.
+
+
+\paragraph{TC (Traffic Control)} TC allows precise control over packet transmission, including selectively dropping packets to emulate network partitions and failures.
+%:when XDP (which operates only at packet ingress), TC works at ingress and egress points, enabling the creation of diverse fault scenarios.
+While XDP  operates only at packet ingress, TC works at ingress and egress points, enabling us to create diverse fault scenarios.
+
+%\mm{podemos terminar com uma frase deste género se houver espaço, deixo comentado para já}
+%Together, these technologies provide a comprehensive platform for observing system behavior and injecting faults with high precision at the OS level, enabling language-agnostic bug reproduction with minimal overhead.

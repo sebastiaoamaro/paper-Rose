@@ -1,0 +1,17 @@
+\section{Conclusion}
+Reproducing \efibshort is challenging since they are only exposed when external faults happen at specific points in the execution.
+Existing state-of-the-art tools that target this problem are JVM-specific and emulate faults by throwing exceptions at strategic points in the code. 
+This limits their applicability outside of the JVM ecosystem and fails to capture external faults that do not necessarily raise exceptions such as network delays.
+
+This paper introduces \sys, a novel approach for reproducing \efib by relying only on OS-level monitoring and fault injection mechanisms.
+%\sys addresses a fundamental gap in systems debugging: while numerous techniques exist for bug discovery, the reproduction of known bugs  --- particularly those triggered by external events --- remains challenging and time consuming.
+%Our approach provides several key advantages over existing reproduction techniques.
+\sys is language-agnostic, enabling the reproduction of bugs across diverse programming environments --- our evaluation reproduces 20 bugs across eight widely-used distributed systems implemented various languages, namely HBase (Java), HDFS (Java), Kafka (Java/Scala), MongoDB (C++), RedisRaft (C), Redpanda (C++), Tendermint (Go),  and Zookeeper (Java).
+Moreover, \sys tracer is able to capture sufficient information for reliable bug reproduction with a low overhead of 2.6\% per node.
+This allows deployment alongside production systems where performance constraints preclude extensive monitoring, and hence enables capturing information about bugs that happen seldom.
+Finally, by employing a Diagnosis phase where we progressively refine the context where faults should be injected, \sys builds schedules that reproduce \efibshort with high replay rates (>90\%).
+These characteristics allow developers to be more efficient in reproducing \efib and, we argue, contribute to improving distributed systems' reliability.
+
+%Reproducing a fault-induced bug is a key step in the process of debugging \efib. Current approaches only work for a subset of systems. To help developers reproduce bugs in other systems, we developed \sys a black-box approach to reproduce \efib automatically. With \sys we can trace production systems efficiently (less than 2.5\% overhead), find the external events and the key context at which these should occur. This is accomplished by progressively refining the context while maintaining the behavior observed in production. 
+%We achieve this by iteratively creating fault-schedules. \sys runs these schedules in a testing environment and leverages the feedback from each fault schedule to decide the context of the faults for the next schedule. 
+%With this approach, we automatically reproduced 20 bugs on different systems written in different languages.
