@@ -17,64 +17,64 @@
 \SetKw{is}{is}
 \newcommand{\Update}{\texttt{UpdateShadowPM}()}
 \begin{algorithm}[t]
-    \scriptsize
-    \caption{Context Creation for Process Faults and Network Faults}\label{alg:context}
-    % \linespread{1.10}
-     \schedule\Comment{Schedule after Level 1 is Executed}
-     \fault\Comment{Fault we are creating the Context for}
-     \node\Comment{Node where the fault occured}
-     \functions\Comment{Functions called by \node which precede \fault~in production trace}
-     \context\Comment{List of unique functions to serve as context for F }
-     
-    \SetKwFunction{findContextforFaultfn}{findContextforFault}
-    \newcommand{\clr}{cacheline\_reords}
-    \newcommand{\getcachelinereords}[1]{\texttt{GetCachelineReorderings}(#1)}
-    \newcommand{\apply}[1]{\texttt{ApplyState}(#1)}
-    \Fn{\findContextforFaultfn{\schedule,\fault,\node,\functions}}{
-        \context $\leftarrow \varnothing$\;
-        \For{$f~in$ \functions}{
-            \lIf{$f~in$ \context}{
-               \Return{\context}
-            }
-            \schedule[\fault] $\leftarrow$  \schedule[\fault] $+$ $f$\;
-            $trace \leftarrow $ \runschedule{\schedule}\;
-            $bug \leftarrow $ \oracle{} \; 
-            \If{$bug$}{
-                $replayrate \leftarrow$ \confirmbug{\schedule} \;
-               \lIf{$replayrate > 60$}{ \Return{\schedule}}
-            }
-            $(correctOrder,faultInjected) \leftarrow $ \processtrace{$trace$}\;
-            \If{$correctOrder~\&~faultInjected$}{
-                \context $\leftarrow$ \context $+ f$ \; 
-                $continue$
-            }
-            \schedule[\fault] $\leftarrow$ 
-            \lElse{ \Return{\context} }
-        }
-    }
-    
-    \SetKwFunction{confirmbugfn}{confirmBug}
-\Fn{\confirmbugfn{\schedule}}{
-    $bugRuns \leftarrow 0$ \;
-    $correctRuns \leftarrow 0$ \;
-    \For{$run~in [0:10]$}{
-    \Comment{If we can not reach our standard rate we leave}
-        \lIf{$correctRuns > 3$}{\Return{$0$}}
-        $run(S)$\;
-        $bug \leftarrow$ \oracle{}\;
-        \lIf{ $bug$}{ $bugRuns+=1$}
-        \lElse{ $correctRuns+=1$}
-        }
-        { \Return{$(bugRuns/10)*100$} }
-    }
-    
-    \SetKwFunction{processtracefn}{processTrace}
-\Fn{\processtracefn{$trace$,\fault,\functions$Original$,$SsizeL$}}{
-        $AF\_trace \leftarrow $ $get\_AF(trace,F)$\;
-        \Comment{Compare behavior in production and caused by schedule}
-        $correctOrder \leftarrow $ $AF\_trace[0:sizeL]$ == \functions$Original[0:sizeL]$\;
-        $faultInjected \leftarrow$ \fault~$in$ $trace$ \;
-        \Return{$(correctOrder,faultInjected)$}
-        
-    }
+	\scriptsize
+	\caption{Context Creation for Process Faults and Network Faults}\label{alg:context}
+	% \linespread{1.10}
+	\schedule\Comment{Schedule after Level 1 is Executed}
+	\fault\Comment{Fault we are creating the Context for}
+	\node\Comment{Node where the fault occured}
+	\functions\Comment{Functions called by \node which precede \fault~in production trace}
+	\context\Comment{List of unique functions to serve as context for F }
+
+	\SetKwFunction{findContextforFaultfn}{findContextforFault}
+	\newcommand{\clr}{cacheline\_reords}
+	\newcommand{\getcachelinereords}[1]{\texttt{GetCachelineReorderings}(#1)}
+	\newcommand{\apply}[1]{\texttt{ApplyState}(#1)}
+	\Fn{\findContextforFaultfn{\schedule,\fault,\node,\functions}}{
+		\context $\leftarrow \varnothing$\;
+		\For{$f~in$ \functions}{
+			\lIf{$f~in$ \context}{
+				\Return{\context}
+			}
+			\schedule[\fault] $\leftarrow$  \schedule[\fault] $+$ $f$\;
+			$trace \leftarrow $ \runschedule{\schedule}\;
+			$bug \leftarrow $ \oracle{} \;
+			\If{$bug$}{
+				$replayrate \leftarrow$ \confirmbug{\schedule} \;
+				\lIf{$replayrate > 60$}{ \Return{\schedule}}
+			}
+			$(correctOrder,faultInjected) \leftarrow $ \processtrace{$trace$}\;
+			\If{$correctOrder~\&~faultInjected$}{
+				\context $\leftarrow$ \context $+ f$ \;
+				$continue$
+			}
+			\schedule[\fault] $\leftarrow$
+			\lElse{ \Return{\context} }
+		}
+	}
+
+	\SetKwFunction{confirmbugfn}{confirmBug}
+	\Fn{\confirmbugfn{\schedule}}{
+	$bugRuns \leftarrow 0$ \;
+	$correctRuns \leftarrow 0$ \;
+	\For{$run~in [0:10]$}{
+	\Comment{If we can not reach our standard rate we leave}
+	\lIf{$correctRuns > 3$}{\Return{$0$}}
+	$run(S)$\;
+	$bug \leftarrow$ \oracle{}\;
+	\lIf{ $bug$}{ $bugRuns+=1$}
+	\lElse{ $correctRuns+=1$}
+	}
+	{ \Return{$(bugRuns/10)*100$} }
+	}
+
+	\SetKwFunction{processtracefn}{processTrace}
+	\Fn{\processtracefn{$trace$,\fault,\functions$Original$,$SsizeL$}}{
+		$AF\_trace \leftarrow $ $get\_AF(trace,F)$\;
+		\Comment{Compare behavior in production and caused by schedule}
+		$correctOrder \leftarrow $ $AF\_trace[0:sizeL]$ == \functions$Original[0:sizeL]$\;
+		$faultInjected \leftarrow$ \fault~$in$ $trace$ \;
+		\Return{$(correctOrder,faultInjected)$}
+
+	}
 \end{algorithm}
