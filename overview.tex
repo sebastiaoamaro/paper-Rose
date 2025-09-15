@@ -189,7 +189,7 @@ The algorithm builds the fault context in three different levels, as depicted in
 \subsubsection{Level 1: Initial Guess.}
 \label{sec:levelone}
 The algorithm starts by collecting all the faults in the trace.
-\sa{R2C1: However, we can not iterate through all the benign faults (faults which do not cause a bug in a system), as this would be an unfeasible task. Thus, we compare a normal execution with the trace obtained from production to discard benign faults.}
+\sa{R2C1: However, we can not iterate through all the benign faults (faults which do not cause a bug in a system), as this would be an unfeasible task. Thus, we compare a normal execution with the buggy trace obtained from production to discard benign faults.}
 \sa{Should I give examples of this here, or in the evaluation?}
 Given this set of faults, the challenge is how to select which ones to contextualize first, to create a schedule within an acceptable time.
 We prioritize faults based on their potential impact on the system and their expected frequency, with less frequent faults having more priority, as well as faults that are in the trace but have not been observed during the profiling phase.

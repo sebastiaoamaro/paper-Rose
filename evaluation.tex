@@ -48,9 +48,9 @@ Anduril reports 22 bugs, \sa{R4C2: out of these 22 we encountered problems eithe
 \sa{"Rather than aiming to reproduce all the reported bugs, we targeted bug diversity across different systems." Temos de retirar esta frase para fazer sentido.}
 Since we do not have traces from when these bugs occurred in production, we recreate the traces by running the test cases provided by Anduril without the Anduril workflow.
 
-sa{R1C7,R2C2: \mypara{Developer Inputs.} The necessary inputs to reproduce these bugs were as follows. For the Anduril Bugs, we leveraged the tests, mostly unit-tests, provided by Anduril, these serve as a workload and oracle, since the outcome of the test indicates the bug occurs or not. For the other bugs, we constructed generic-representative workloads, which do generic operations in loop (e.g. insert and read for MongoDB) or used Jepsen, which has a similar approach but with append-only lists.
-		For oracles, the oracles we designed (Jepsen already has a built-in one~\cite{elle}) collect the logs of the nodes in the deployment and then check for a specific message within the logs indicating the presence of a bug.
-		For lists of functions, we looked into the RedisRaft and Redpanda repo and looked for code files with names that indicate control functionality, e.g., snapshotting, raft, partition, etc.}
+\sa{R1C7,R2C2: \mypara{Developer Inputs.} The necessary inputs to reproduce these bugs were as follows. For the Anduril Bugs, we leveraged the tests, mostly unit-tests, provided by Anduril, these serve as a workload and oracle, since the outcome of the test indicates the bug occurs or not. For the other bugs, we constructed generic-representative workloads, which do generic operations in loop (e.g. insert and read for MongoDB) or used Jepsen, which has a similar approach but with append-only lists.
+	For oracles, the oracles we designed collect the logs of the nodes in the deployment and then check for a specific message within the logs indicating the presence of a bug. For the redpanda bugs, since Jepsen has a built-in oracle~\cite{elle} we used it directly.
+	For lists of relevant files, we looked into the RedisRaft and Redpanda repositories and looked for code files with names that indicate control functionality, e.g., snapshotting, raft, partition, etc.}
 
 
 \mypara{Key Takeaways.} Out of the 22 available traces, \sys automatically reproduces 20 bugs, achieving close to full completeness.
@@ -198,7 +198,7 @@ These results show that \sys selective tracing successfully minimizes performanc
 	\end{tabular}
 \end{table}
 
-To calculate the effectiveness of the function frequency heuristic, we conducted a test where we run the schedules which reproduce the bugs where this heuristic applies, in two scenarios: first one where we trace all the functions from the user provided files, and second one where we trace only the functions that were not removed by the frequency heuristic. These schedules take on average 2 minutes to run
+To calculate the effectiveness of the function frequency heuristic, we conducted a test where we run the schedules which reproduce the bugs where this heuristic applies in two scenarios: in the first one we trace all the functions from the user provided files, and in the second one we trace the functions that were not removed by the frequency heuristic. These schedules take on average 2 minutes to run.
 Results are displayed in Table~\ref{tab:function_frequency}.
 As we can see, this heuristic reduces the number of traced functions by up to 4 orders of magnitude. In practice, if we do not apply this heuristic the overhead of the Tracer will be drastically higher since every time an uprobe is reached a switch between user and kernel space is required. Another consequence of not applying the heuristic is that the trace will be polluted, since we only trace the last 1 million events.
 
