@@ -17,7 +17,7 @@ To select the systems and the \efib to reproduce, we relied on Jepsen~\cite{jeps
 
 Jepsen~\cite{jepsen} is a randomized fault-injection tool that maintains a public database of bugs found.
 We studied the Jepsen analysis of the last 4 years using as the selection criteria of \efibshort, quantity and diversity.
-In the end, we selected RedisRaft\cite{redisraft,redisraftreport} and Redpanda~\cite{redpanda,redpandareport}.
+In the end, we selected RedisRaft~\cite{redisraft,redisraftreport} and Redpanda~\cite{redpanda,redpandareport}.
 To obtain the trace, which would come from a production deployment, we execute the target system with our tracer and subject it to Jepsen's faults.
 This trace is then fed to \sys following the workflow depicted in Figure~\ref{fig:workflow}.
 
